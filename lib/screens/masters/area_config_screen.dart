@@ -453,11 +453,10 @@ class _SlotsTabState extends State<_SlotsTab> with AutomaticKeepAliveClientMixin
   Future<ApiRes> _load() async {
     final r = await Future.wait([
       api.get('$_base/areas/${widget.id}/slots'),
-      api.get('$_base/slot-templates', {'includeInactive': 'true'}),
       api.get('$_base/areas/${widget.id}/slots/health'),
     ]);
     if (!r[0].ok) return r[0];
-    return ApiRes({'status': true, 'slots': r[0].data, 'library': r[1].ok ? r[1].data : [], 'health': r[2].ok ? r[2].data : []});
+    return ApiRes({'status': true, 'slots': r[0].data, 'health': r[1].ok ? r[1].data : []});
   }
 
   Future<void> _toggle(Map s) async {
@@ -502,12 +501,10 @@ class _SlotsTabState extends State<_SlotsTab> with AutomaticKeepAliveClientMixin
     if (r.ok) _key.currentState?.reload();
   }
 
-  Future<void> _template([Map? t]) async {
-    var start = _hm(t?['start_time']).ifEmpty('08:00'), end = _hm(t?['end_time']).ifEmpty('10:00');
-    final name = TextEditingController(text: str(t?['name'], ''));
-    final order = TextEditingController(text: '${t?['display_order'] ?? 0}');
-    var active = t == null ? true : truthy(t['is_active']);
-    var alsoEnable = t == null;
+  Future<void> _newSlot() async {
+    var start = '08:00', end = '10:00';
+    final name = TextEditingController();
+    final order = TextEditingController(text: '0');
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -515,8 +512,8 @@ class _SlotsTabState extends State<_SlotsTab> with AutomaticKeepAliveClientMixin
       builder: (c) => StatefulBuilder(builder: (c, set) => Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, MediaQuery.of(c).viewInsets.bottom + 16),
             child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-              Text(t == null ? 'Add to slot library' : 'Edit shared slot', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-              if (t != null) const Text('The library is shared by all areas.', style: TextStyle(color: C.amber)),
+              const Text('New slot', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+              const Text('Added and turned on for this area.', style: TextStyle(color: C.body, fontSize: 12.5)),
               const Gap(8),
               TextField(controller: name, decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Morning')),
               const Gap(8),
@@ -533,26 +530,15 @@ class _SlotsTabState extends State<_SlotsTab> with AutomaticKeepAliveClientMixin
               ]),
               const Gap(8),
               TextField(controller: order, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Order')),
-              if (t != null) SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Active'), value: active, onChanged: (v) => set(() => active = v)),
-              if (t == null) CheckboxListTile(contentPadding: EdgeInsets.zero, title: const Text('Also enable in this area'), value: alsoEnable, onChanged: (v) => set(() => alsoEnable = v == true)),
               FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Save')),
             ]),
           )),
     );
     if (ok != true || !mounted) return;
-    final body = {'name': name.text.trim().isEmpty ? '$start–$end' : name.text.trim(), 'start_time': start, 'end_time': end, 'display_order': int.tryParse(order.text) ?? 0, if (t != null) 'is_active': active};
-    final r = await busy(context, () => t == null ? api.post('$_base/slot-templates', body) : api.put('$_base/slot-templates/${t['template_id']}', body), success: t == null ? 'Slot added to the library' : 'Slot updated');
-    if (r.ok && t == null && alsoEnable) {
-      final id = r.map['template_id'];
-      if (id != null) await api.put('$_base/areas/${widget.id}/slots/$id', {'is_enabled': true});
-    }
-    if (r.ok) _key.currentState?.reload();
-  }
-
-  Future<void> _deleteTemplate(Map t) async {
-    if (!await confirm(context, 'Delete ${_hm(t['start_time'])}–${_hm(t['end_time'])}?', message: 'It will be removed from the slot library.', danger: true, ok: 'Delete')) return;
-    if (!mounted) return;
-    final r = await busy(context, () => api.delete('$_base/slot-templates/${t['template_id']}'), success: 'Slot deleted');
+    final body = {'name': name.text.trim().isEmpty ? '$start–$end' : name.text.trim(), 'start_time': start, 'end_time': end, 'display_order': int.tryParse(order.text) ?? 0};
+    final r = await busy(context, () => api.post('$_base/slot-templates', body), success: 'Slot added');
+    final id = r.ok ? r.map['template_id'] : null;
+    if (id != null) await api.put('$_base/areas/${widget.id}/slots/$id', {'is_enabled': true});
     if (r.ok) _key.currentState?.reload();
   }
 
@@ -631,7 +617,7 @@ class _SlotsTabState extends State<_SlotsTab> with AutomaticKeepAliveClientMixin
           await api.put('$_base/areas/${widget.id}/slots/${s['template_id']}', {'is_enabled': false});
         }
       }
-      // 3. Reuse or create library slots, enable each with the capacity.
+      // 3. Reuse or create the slots, enable each with the capacity.
       final lib = await api.get('$_base/slot-templates', {'includeInactive': 'true'});
       ApiRes last = ApiRes({'status': true});
       for (var i = 0; i < wins.length; i++) {
@@ -658,14 +644,13 @@ class _SlotsTabState extends State<_SlotsTab> with AutomaticKeepAliveClientMixin
       load: _load,
       builder: (c, res, reload) {
         final slots = ApiRes.asList(res['slots'])..sort((a, b) => _mins(_hm(a['start_time'])).compareTo(_mins(_hm(b['start_time']))));
-        final library = ApiRes.asList(res['library']);
         final health = {for (final h in ApiRes.asList(res['health'])) toInt(h['template_id']): h};
         return ListView(padding: const EdgeInsets.all(12), children: [
           if (widget.canEdit)
             Row(children: [
               Expanded(child: FilledButton.icon(onPressed: _quickSetup, icon: const Icon(Icons.bolt), label: const Text('Quick setup'))),
               const Gap(8),
-              Expanded(child: OutlinedButton.icon(onPressed: () => _template(), icon: const Icon(Icons.add), label: const Text('New slot'))),
+              Expanded(child: OutlinedButton.icon(onPressed: _newSlot, icon: const Icon(Icons.add), label: const Text('New slot'))),
             ]),
           const Gap(),
           SectionCard(title: 'Slots offered in this area', children: [
@@ -685,22 +670,6 @@ class _SlotsTabState extends State<_SlotsTab> with AutomaticKeepAliveClientMixin
                   if (widget.canEdit && truthy(s['is_enabled'])) IconButton(onPressed: () => _settings(s), icon: const Icon(Icons.tune)),
                   Switch(value: truthy(s['is_enabled']), onChanged: widget.canEdit ? (_) => _toggle(s) : null),
                 ]),
-              ),
-          ]),
-          const Gap(),
-          SectionCard(title: 'Slot library — shared by all areas', children: [
-            if (library.isEmpty) const Text('The library is empty', style: TextStyle(color: C.muted)),
-            for (final t in library)
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('${fmtTime(t['start_time'])} – ${fmtTime(t['end_time'])}  ${str(t['name'], '')}'),
-                subtitle: Text('Used by ${t['areas_enabled'] ?? 0} area(s)${truthy(t['is_active']) ? '' : ' · inactive'}'),
-                trailing: widget.canEdit
-                    ? PopupMenuButton<String>(
-                        onSelected: (v) => v == 'edit' ? _template(t) : _deleteTemplate(t),
-                        itemBuilder: (_) => const [PopupMenuItem(value: 'edit', child: Text('Edit')), PopupMenuItem(value: 'delete', child: Text('Delete'))],
-                      )
-                    : null,
               ),
           ]),
         ]);
