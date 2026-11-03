@@ -494,3 +494,18 @@ class RowTile extends StatelessWidget {
     );
   }
 }
+
+/// Compact y-axis labels for charts ("2.5K", "12L"). The top label (the
+/// chart's own max) is skipped so it never collides with the card title.
+Widget chartAxisLabel(double v, dynamic meta) {
+  if (v == meta.max && v != meta.min) return const SizedBox.shrink();
+  String t;
+  if (v >= 100000) {
+    t = '${(v / 100000).toStringAsFixed(v % 100000 == 0 ? 0 : 1)}L';
+  } else if (v >= 1000) {
+    t = '${(v / 1000).toStringAsFixed(v % 1000 == 0 ? 0 : 1)}K';
+  } else {
+    t = v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+  }
+  return Padding(padding: const EdgeInsets.only(right: 4), child: Text(t, textAlign: TextAlign.right, style: const TextStyle(fontSize: 10.5, color: C.muted)));
+}

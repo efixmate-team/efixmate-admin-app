@@ -104,7 +104,7 @@ void openRoute(BuildContext context, String path) {
     toast('You don’t have access to ${r.title}', error: true);
     return;
   }
-  Navigator.push(context, MaterialPageRoute(builder: (c) => Scaffold(appBar: AppBar(title: Text(r.title)), body: r.builder(c))));
+  Navigator.push(context, MaterialPageRoute(builder: (c) => Scaffold(appBar: AppBar(title: Text(r.title)), body: SafeArea(top: false, child: r.builder(c)))));
 }
 
 /// Routes the signed-in admin can open, in registry order.

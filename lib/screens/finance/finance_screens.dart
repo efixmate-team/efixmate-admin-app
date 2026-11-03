@@ -102,7 +102,7 @@ class _FinanceCenterScreenState extends State<FinanceCenterScreen> {
                           gridData: const FlGridData(drawVerticalLine: false),
                           titlesData: const FlTitlesData(
                             topTitles: AxisTitles(), rightTitles: AxisTitles(), bottomTitles: AxisTitles(),
-                            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 44)),
+                            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 40, getTitlesWidget: chartAxisLabel)),
                           ),
                           barGroups: [
                             for (var i = 0; i < series.length; i++)

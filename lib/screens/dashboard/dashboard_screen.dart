@@ -157,7 +157,7 @@ class _Trend extends StatelessWidget {
       titlesData: FlTitlesData(
         topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
         rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 28)),
+        leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 32, getTitlesWidget: chartAxisLabel)),
         bottomTitles: AxisTitles(
           sideTitles: SideTitles(
             showTitles: true,
