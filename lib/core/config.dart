@@ -10,7 +10,12 @@ class AppConfig {
   static const _prefKey = 'efm_admin_server';
 
   /// Store (release) builds talk to the live server; debug builds to dev.
-  static ServerEnv env = kReleaseMode ? ServerEnv.live : ServerEnv.dev;
+  /// Override with `--dart-define=SERVER_ENV=dev` (e.g. a staging AAB).
+  static const _envOverride = String.fromEnvironment('SERVER_ENV');
+  static ServerEnv env = ServerEnv.values.firstWhere(
+    (e) => e.name == _envOverride,
+    orElse: () => kReleaseMode ? ServerEnv.live : ServerEnv.dev,
+  );
 
   /// Android emulator reaches the host machine at 10.0.2.2. On a real device
   /// use `adb reverse tcp:5000 tcp:5000` and this still works via localhost.
